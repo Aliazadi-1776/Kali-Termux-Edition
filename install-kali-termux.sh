@@ -1,111 +1,71 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
-set -e
-
 clear
-echo "======================================"
-echo "   Kali Linux Installer for Termux"
-echo "======================================"
-echo ""
+echo "========================================"
+echo "   Kali Linux Style Installer (Rootless)"
+echo "========================================"
+echo
 echo "Do you want Kali to start automatically when Termux opens?"
 echo "1) Yes (Auto login)"
 echo "2) No  (Manual login)"
-read -p "Select [1-2]: " AUTO_CHOICE
+read -p "Select [1-2]: " AUTO_LOGIN
 
-if [ "$AUTO_CHOICE" = "1" ]; then
-  echo "[+] Enabling auto-login..."
+echo
+echo "Select Zsh setup:"
+echo "1) Basic Zsh"
+echo "2) Zsh + Oh My Zsh"
+echo "3) Zsh + Oh My Zsh + Plugins (Recommended)"
+read -p "Select [1-3]: " ZSH_MODE
 
-  grep -q "Auto start Kali" ~/.bashrc || cat << 'AUTO' >> ~/.bashrc
+echo
+echo "[*] Updating system..."
+apt update && apt upgrade -y
 
-# Auto start Kali (added by install-kali-termux)
-if [ -z "$PROOT_DISTRIBUTION" ]; then
-  proot-distro login debian
+echo "[*] Installing base packages..."
+apt install -y git zsh curl neofetch fastfetch
+
+# ---------------- ZSH ----------------
+if [[ "$ZSH_MODE" != "1" ]]; then
+  echo "[*] Installing Oh My Zsh..."
+  RUNZSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 fi
-AUTO
 
-elif [ "$AUTO_CHOICE" = "2" ]; then
-  echo "[+] Manual login selected."
-else
-  echo "[!] Invalid choice, continuing without auto-login."
+if [[ "$ZSH_MODE" == "3" ]]; then
+  echo "[*] Installing Zsh plugins..."
+  git clone https://github.com/zsh-users/zsh-autosuggestions \
+    ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions
+
+  git clone https://github.com/zsh-users/zsh-syntax-highlighting \
+    ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
 fi
 
-echo ""
-echo "[+] Updating Termux..."
-pkg update -y && pkg upgrade -y
-pkg install -y proot-distro wget gnupg curl dialog
+# ---------------- THEME ----------------
+echo "[*] Installing Kali-like Zsh theme..."
+mkdir -p ~/.oh-my-zsh/custom/themes
 
-echo "[+] Installing Debian rootfs..."
-proot-distro install debian
-
-echo "[+] Entering Debian..."
-proot-distro login debian -- bash << 'EOF'
-
-set -e
-
-echo "[+] Base system setup..."
-apt update -y
-apt install -y wget gnupg zsh curl ca-certificates dialog
-
-echo "[+] Adding Kali archive key..."
-wget -qO - https://archive.kali.org/archive-key.asc | gpg --dearmor > /usr/share/keyrings/kali-archive-keyring.gpg
-
-echo "[+] Adding Kali rolling repository..."
-echo "deb [signed-by=/usr/share/keyrings/kali-archive-keyring.gpg] http://http.kali.org/kali kali-rolling main contrib non-free non-free-firmware" > /etc/apt/sources.list.d/kali.list
-
-apt update -y
-apt upgrade -y
-
-# -------- TOOL MENU --------
-CHOICE=$(dialog --checklist "Select Kali toolsets to install:" 20 60 10 \
-1 "Web tools (kali-tools-web)" off \
-2 "Top 10 tools (kali-tools-top10)" off \
-3 "Password tools (kali-tools-passwords)" off \
-4 "Wireless tools (limited in proot)" off \
-5 "Forensics tools" off \
-6 "All tools (kali-linux-large)" off \
-3>&1 1>&2 2>&3)
-
-clear
-
-for ITEM in $CHOICE; do
-  case $ITEM in
-    1) apt install -y kali-tools-web ;;
-    2) apt install -y kali-tools-top10 ;;
-    3) apt install -y kali-tools-passwords ;;
-    4) apt install -y kali-tools-wireless ;;
-    5) apt install -y kali-tools-forensics ;;
-    6) apt install -y kali-linux-large ;;
-  esac
-done
-
-echo "[+] Installing system info tool..."
-apt install -y fastfetch || apt install -y neofetch
-
-echo "[+] Setting zsh as default shell..."
-chsh -s /bin/zsh
-
-echo "[+] Configuring Kali-like terminal..."
-cat << 'ZSH' >> /root/.zshrc
-
-PROMPT="%F{red}┌──(%F{blue}kali㉿termux%F{red})-[%~]
-└─%F{blue}$ %f"
-
-alias ll='ls -lah'
-alias update='apt update && apt upgrade -y'
-
-fastfetch 2>/dev/null || neofetch
-
-ZSH
-
-echo "[✓] Kali environment ready!"
+cat << 'EOF' > ~/.oh-my-zsh/custom/themes/kali.zsh-theme
+PROMPT='%F{blue}┌──(kali㉿termux)-[%F{cyan}%~%F{blue}]
+└─$ %f'
 EOF
 
-echo ""
-echo "======================================"
-echo "[✓] INSTALLATION COMPLETE"
-echo "======================================"
-echo ""
-echo "Login command:"
-echo "proot-distro login debian"
-echo ""
-echo "Exit Kali with: exit"
+# ---------------- ZSHRC ----------------
+echo "[*] Configuring Zsh..."
+sed -i 's/^ZSH_THEME=.*/ZSH_THEME="kali"/' ~/.zshrc 2>/dev/null || echo 'ZSH_THEME="kali"' >> ~/.zshrc
+
+if [[ "$ZSH_MODE" == "3" ]]; then
+  sed -i 's/^plugins=.*/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' ~/.zshrc
+else
+  sed -i 's/^plugins=.*/plugins=(git)/' ~/.zshrc
+fi
+
+# ---------------- AUTO LOGIN ----------------
+if [[ "$AUTO_LOGIN" == "1" ]]; then
+  echo "[*] Enabling auto start..."
+  grep -q "exec zsh" ~/.bashrc || echo "exec zsh" >> ~/.bashrc
+fi
+
+echo
+echo "========================================"
+echo " Installation completed successfully ✔"
+echo " Restart Termux to enjoy Kali-style Zsh"
+echo "========================================"
